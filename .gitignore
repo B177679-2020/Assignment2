@@ -1,0 +1,5 @@
+mypasswordsfile
+*.pdf
+*.c
+*.log
+**/fastq.gz
