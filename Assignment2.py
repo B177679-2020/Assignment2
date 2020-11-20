@@ -25,9 +25,14 @@ os.chdir("src")
 
 #ESearchBText = subprocess.check_output(ESearchBirds, shell=True)
 
+##GET USER INPUT w. some error traps for typing errors
 TaxonID = input("Please type in your Taxon ID (txidxxxx):")
+if not TaxonID.startswith("txid"):
+	print("Please, enter the Taxon ID in the correct format (txid followed by 4 or 5 numbers)")
+	TaxonID = input("Please type in your Taxon ID again (remember, txidxxxx):")
 Protein = input("Please type in the protein of interest (ex.: phosphatase, kinase...):")
 
+##Search in the NCBI database
 GeneralES = 'esearch -db protein -query "{}[Organism] AND {}*[Protein] NOT partial NOT predicted" | efetch -db protein -format fasta > {}.fasta'.format(TaxonID, Protein, TaxonID)
 
 GeneralESout = subprocess.check_output(GeneralES, shell=True)
@@ -36,9 +41,12 @@ GeneralESout = subprocess.check_output(GeneralES, shell=True)
 UserFile = open('{}.fasta'.format(TaxonID))
 UserFile_Contents = UserFile.read() 
 print(UserFile_Contents)
-
 num = len([1 for line in UserFile_Contents if line.startswith(">")])
 print("The number of protein sequences for your query is {}".format(num))
+if num == 0:
+	print("Your query did not yield any results! Are you sure you typed in the gene name and the taxon ID correctly...? Please, start again")
+	exit()
+
 UserFile.close()
 
 ##MULTIPLE SEQUENCE ALIGNMENT WITH CLUSTALO
@@ -78,13 +86,13 @@ if numClustal > 250:
 	dfsorted = df.sort_values('3', ascending = False)
 	print("Sorted by similarity")
 	print(dfsorted)
-	#This gets the accession number of the 250 more highly related proteins
 
+	#This gets the accession number of the 250 more highly related proteins
 	#Get accession numbers as a list
 	listID = df['2'].to_list()
-	ListID250 = listID[1:250]
+	ListID250 = listID[0:250]
 	print("Acc numbers of the most similar sequences are shown")
-	print(ListID250)
+	print(len(ListID250))
 
 	FinalFASTA = open("SimilarSeqs.txt", mode="w")
 	AI_DICT = {}
@@ -111,16 +119,15 @@ if numClustal > 250:
                         	FinalFASTA.write(line)
 	UserFile.close()
 	FinalFASTA.close()
-	Plot = 'plotcon SimilarSeqs.txt'
+	Plot = 'plotcon SimilarSeqs.txt -graph svg -goutfile plotcon'
 	subprocess.check_output(Plot, shell=True)
 else:
-	Plot2 = 'plotcon {}.fasta'.format(TaxonID)
+##Generate the plotcon with original dataset if the number of sequences was <250
+	Plot2 = 'plotcon {}.fasta -graph svg -goutfile plotcon'.format(TaxonID)
 	subprocess.check_output(Plot2, shell=True)
 
 ##LEVEL OF SIMILARITY BETWEEN SEQUENCES
 
-
-		
 
 UserFile.close()
 
