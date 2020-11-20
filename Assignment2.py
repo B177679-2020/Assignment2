@@ -5,7 +5,6 @@
 #Import all modules that the program needs to run
 import os, sys
 import subprocess
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
@@ -26,7 +25,7 @@ os.chdir("src")
 
 #ESearchBText = subprocess.check_output(ESearchBirds, shell=True)
 
-TaxonID = input("Please type in your Taxon ID (4-number digit):")
+TaxonID = input("Please type in your Taxon ID (txidxxxx):")
 Protein = input("Please type in the protein of interest (ex.: phosphatase, kinase...):")
 
 GeneralES = 'esearch -db protein -query "{}[Organism] AND {}*[Protein] NOT partial NOT predicted" | efetch -db protein -format fasta > {}.fasta'.format(TaxonID, Protein, TaxonID)
@@ -40,6 +39,7 @@ print(UserFile_Contents)
 
 num = len([1 for line in UserFile_Contents if line.startswith(">")])
 print("The number of protein sequences for your query is {}".format(num))
+UserFile.close()
 
 ##MULTIPLE SEQUENCE ALIGNMENT WITH CLUSTALO
 print("ClustalO multiple alignment is being performed. Please be a little bit patient...")
@@ -55,68 +55,72 @@ print("The number of aligned sequences with clustal is {}".format(numClustal))
 
 #Get consensus sequence
 if numClustal > 250:
+	##Get a consensus sequence to BLAST against
 	print("There were more than 250 sequences. BLAST analysis will be performed to keep only the 250 most similar ones")
 	Cons = 'cons -sequence {}MA.fasta -outseq {}Cons.fasta'.format(TaxonID, TaxonID)
 	ConsOut = subprocess.check_output(Cons, shell=True)
 	print("A consensus sequence was generated")
+	#BLAST the generated consensus seq against all the prot sequences found in the query
+	#First generate a BLAST database to search against
 	BlastDB = 'makeblastdb -in {}.fasta -dbtype prot'.format(TaxonID)
+	#Perform the BLAST search
 	BlastP = 'blastp -query {}Cons.fasta -num_alignments 250 -db {}.fasta -outfmt 7 -out blastout.txt'.format(TaxonID, TaxonID)
 	BlastDBOut = subprocess.check_output(BlastDB, shell=True)
 	BlastPOut = subprocess.check_output(BlastP, shell=True)
 	print("BLAST analysis performed")
 
-#Try with blast
-#blastp -query txid8782Cons.fasta -num_alignments 250 -db txid8782.fasta -outfmt 7 -out blastout.txt
 
-##Sort the blast output by the value of identity (3 column)
-#sort -k3,3nr blastout.txt
+	#Sort BLAST results by similarity using Pandas
+	df = pd.read_csv('blastout.txt',sep='\t', skiprows=(0,1,2,3,4))
+	print(df)
+	df.columns = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"]
+	pd.concat([pd.DataFrame(df.columns), df], ignore_index=True)
+	dfsorted = df.sort_values('3', ascending = False)
+	print("Sorted by similarity")
+	print(dfsorted)
+	#This gets the accession number of the 250 more highly related proteins
 
+	#Get accession numbers as a list
+	listID = df['2'].to_list()
+	ListID250 = listID[1:250]
+	print("Acc numbers of the most similar sequences are shown")
+	print(ListID250)
 
-#Sort BLAST results by similarity using Pandas
-df = pd.read_csv('blastout.txt',sep='\t', skiprows=(0,1,2,3,4))
-print(df)
-df.columns = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"]
-pd.concat([pd.DataFrame(df.columns), df], ignore_index=True)
-dfsorted = df.sort_values('3', ascending = False)
-print("Sorted by similarity")
-print(dfsorted)
-#This gets the accession number of the 250 more highly related proteins
+	FinalFASTA = open("SimilarSeqs.txt", mode="w")
+	AI_DICT = {}
+	for line in ListID250:
+    		AI_DICT[line[:-1]] = 1
 
-#Try to get accession numbers as a list
-listID = df['2'].to_list()
-ListID250 = listID[1:250]
-print("Acc numbers of the most similar sequences are shown")
-#AccIDs = AccNumbs.split(" ")
-print(ListID250)
+	UserFile = open('{}.fasta'.format(TaxonID), 'r')
+	
 
+	skip = 0
+	for line in UserFile:
+        	if line[0] == '>':
+                	_splitline = line.split(' ')
+                	AccNumbArrow = _splitline[0]
+                	accessorID = AccNumbArrow[1:-1]
+                	print(accessorID)
+                	if accessorID in AI_DICT:
+                        	FinalFASTA.write(line)
+                        	skip = 0
+                	else:
+                        	skip = 1
+        	else:
+                	if not skip:
+                        	FinalFASTA.write(line)
+	UserFile.close()
+	FinalFASTA.close()
+	Plot = 'plotcon SimilarSeqs.txt'
+	subprocess.check_output(Plot, shell=True)
+else:
+	Plot2 = 'plotcon {}.fasta'.format(TaxonID)
+	subprocess.check_output(Plot2, shell=True)
 
-UserFile = open('txid8782.fasta', 'r')
-
-FinalFASTA = open("Trial5.txt", mode="w")
-AI_DICT = {}
-for line in ListID250:
-    AI_DICT[line[:-1]] = 1
-
-skip = 0
-for line in UserFile:
-        if line[0] == '>':
-                _splitline = line.split(' ')
-                AccNumbArrow = _splitline[0]
-                accessorID = AccNumbArrow[1:-1]
-                print(accessorID)
-                if accessorID in AI_DICT:
-                        FinalFASTA.write(line)
-                        skip = 0
-                else:
-                        skip = 1
-        else:
-                if not skip:
-                        FinalFASTA.write(line)
-
-UserFile.close()
-FinalFASTA.close()
-
+##LEVEL OF SIMILARITY BETWEEN SEQUENCES
 
 
 		
+
+UserFile.close()
 
