@@ -8,8 +8,6 @@ import subprocess
 import numpy as np
 import pandas as pd
 
-'''
-
 #Make sure we are running in the user workspace of the server
 chdir = ("cd /localdisk/home/$USER")
 subprocess.check_output(chdir, shell=True)
@@ -88,21 +86,20 @@ UserFile.close()
 
 ##MULTIPLE SEQUENCE ALIGNMENT WITH CLUSTALO
 print("ClustalO multiple alignment is being performed. Please be a little bit patient...")
-Clustalo = 'clustalo -i {}.fasta -o {}MA.fasta -v --output-order tree-order'.format(TaxonID, TaxonID)
+Clustalo = 'clustalo -i {}.fasta -o {}MA.msf --outfmt msf -v --output-order tree-order'.format(TaxonID, TaxonID)
 ClustaloOut = subprocess.check_output(Clustalo, shell=True)
 
 #Check the ClustalO output
-UserClustal = open('{}MA.fasta'.format(TaxonID))
+UserClustal = open('{}MA.msf'.format(TaxonID))
 UserClustal_Contents = UserClustal.read()
 print(UserClustal_Contents)
-numClustal = len([1 for line in UserClustal_Contents if line.startswith(">")])
-print("The number of aligned sequences with clustal is {}".format(numClustal))
+print("The number of aligned sequences with clustal is {}".format(num))
 
 #Get consensus sequence
-if numClustal > 250:
+if num >= 250:
 	##Get a consensus sequence to BLAST against
 	print("There were more than 250 sequences. BLAST analysis will be performed to keep only the 250 most similar ones")
-	Cons = 'cons -sequence {}MA.fasta -outseq {}Cons.fasta'.format(TaxonID, TaxonID)
+	Cons = 'cons -sequence {}MA.msf -outseq {}Cons.fasta'.format(TaxonID, TaxonID)
 	ConsOut = subprocess.check_output(Cons, shell=True)
 	print("A consensus sequence was generated")
 	#BLAST the generated consensus seq against all the prot sequences found in the query
@@ -154,18 +151,18 @@ if numClustal > 250:
 	FinalFASTA.close()
 	
         ##Perform alignment again, this time with just the 250 most similar sequences
-        print("ClustalO multiple alignment is being performed. Please be patient...")
-        Clustalo = 'clustalo -i SimilarSeqs.txt -o SimilarSeqsMA.fasta -v --output-order tree-order'.format(TaxonID, TaxonID)
-        ClustaloOut = subprocess.check_output(Clustalo, shell=True)
+	print("ClustalO multiple alignment is being performed. Please be patient...")
+	Clustalo = 'clustalo -i SimilarSeqs.txt -o SimilarSeqsMA.msf --outfmt msf -v --output-order tree-order'.format(TaxonID, TaxonID)
+	ClustaloOut = subprocess.check_output(Clustalo, shell=True)
 
 	##Plot similarity of the aligned sequences
-        Plot = 'plotcon SimilarSeqsMA.fasta -graph svg -goutfile plotcon'
-        subprocess.check_output(Plot, shell=True)
+	Plot = 'plotcon SimilarSeqsMA.msf -graph svg -goutfile plotcon'
+	subprocess.check_output(Plot, shell=True)
 	
 
 else:
 ##Generate the plotcon with original dataset if the number of sequences was <250
-	Plot = 'plotcon {}MA.fasta -graph svg -goutfile plotcon'.format(TaxonID)
+	Plot = 'plotcon {}MA.msf -graph svg -goutfile plotcon'.format(TaxonID)
 	subprocess.check_output(Plot, shell=True)
 
 ##The plot has been generated. Let the user know.
@@ -173,19 +170,41 @@ print("A similarity plot has been created and stored in your workspace! It is ca
 UserFile.close()
 
 
-
 ##PART 3: PROSITE MOTIF SEARCH
 
 REQUESTED_LINES = input("How many sequences would you like to send for PROSITE motif analysis?:")
-if numClustal > 250:
+if num > 250:
 	SelectedSeqs = 'awk "/^>/ {n++} n> %s {exit} {print}" SimilarSeqs.txt > ToPROSITE.fasta' % REQUESTED_LINES
 	SelSeqs = subprocess.check_output(SelectedSeqs, shell=True)
 else:
-	SelectedSeqs = 'awk "/^>/ {n++} n> %s {exit} {print}" txid8782.fasta > ToPROSITE.fasta' % REQUESTED_LINES 
+	SelectedSeqs = 'awk "/^>/ {n++} n> %s {exit} {print}" %s.fasta > ToPROSITE.fasta' % (REQUESTED_LINES, TaxonID) 
 	SelSeqs = subprocess.check_output(SelectedSeqs, shell=True)
 
-for seq in SelSeqs
-	if seq.starts
+UserFile = open('ToPROSITE.fasta', 'r')
+  
+outfile = []
+
+#Generate a single FASTA file for each sequence that will be analysed
+for line in UserFile:
+    if line.startswith(">"):
+        if (outfile != []): outfile.close()
+        AccIDarrow = line.strip().split(' ')[0]
+        AccID = AccIDarrow[1:-1]
+        filename = AccID+".fasta"
+        outfile = open(filename,'w')
+        outfile.write(line)
+    else:
+        outfile.write(line)
+outfile.close()
+
+for filename in os.listdir('.'):
+	if filename.endswith("..fasta"):
+		PROSITE = 'patmatmotifs -sequence {} -sprotein1 -sformat1 fasta | cat'.format(filename)
+		PROSITE_OUT = subprocess.check_output(PROSITE, shell=True)
+		continue
+	else:
+		continue
+
 
 
 
