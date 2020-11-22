@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-##FIRST STEP: GET ALL THE SEQUENCES
+##GETTING THE PROGRAM READY
 
 #Import all modules that the program needs to run
 import os, sys
@@ -21,9 +21,10 @@ os.chdir(Directory)
 os.mkdir("src")
 os.chdir("src")
 
+##GETTING THE SEQUENCES REQUESTED BY THE USER
+
 #Example query to get the birds G6P protein sequences in fasta format
 #ESearchBirds = 'esearch -db protein -query "txid8782[Organism] AND glucose-6-phosphatase[Protein]" | efetch -db protein -format fasta > birds_G6P.fasta'
-
 #ESearchBText = subprocess.check_output(ESearchBirds, shell=True)
 
 ##GET USER INPUT w. some error traps for typing errors
@@ -37,17 +38,21 @@ Protein = input("Please type in the protein of interest (ex.: phosphatase, kinas
 yes = {'yes','y', 'ye', 'YES', 'Yes'}
 no = {'no','n', 'No', 'NO'}
 
-PartialsPred = input("Do you want to include partial and predicted sequences of the protein in your search, if there are any? yes or no")
-
 ##Search in the NCBI database
 
-if PartialsPred in yes:
-	GeneralES = 'esearch -db protein -query "{}[Organism] AND {}*[Protein]" | efetch -db protein -format fasta > {}.fasta'.format(TaxonID, Protein, TaxonID)
-elif PartialsPred in no:
-	GeneralES = 'esearch -db protein -query "{}[Organism] AND {}*[Protein] NOT partial NOT predicted" | efetch -db protein -format fasta > {}.fasta'.format(TaxonID, Protein, TaxonID)
-else:
-	print("No valid answer!")
-	exit()
+i=0
+while (i==0):
+    print("hola")
+    PartialsPred = input("Do you want to include partial and predicted sequences of the protein in your search, if there are any? yes or no")
+
+    if PartialsPred in yes:
+            i=1
+            GeneralES = 'esearch -db protein -query "{}[Organism] AND {}*[Protein]" | efetch -db protein -format fasta > {}.fasta'.format(TaxonID, Protein, TaxonID)
+    elif PartialsPred in no:
+            i=1
+            GeneralES = 'esearch -db protein -query "{}[Organism] AND {}*[Protein] NOT partial NOT predicted" | efetch -db protein -format fasta > {}.fasta'.format(TaxonID, Protein, TaxonID)
+    else:
+            print("Sorry, I did not understand that!")
 
 GeneralESout = subprocess.check_output(GeneralES, shell=True)
 
@@ -56,8 +61,11 @@ GeneralESout = subprocess.check_output(GeneralES, shell=True)
 UserFile = open('{}.fasta'.format(TaxonID))
 UserFile_Contents = UserFile.read() 
 print(UserFile_Contents)
+#Count the number of sequences
 num = len([1 for line in UserFile_Contents if line.startswith(">")])
 print("The number of protein sequences for your query is {}".format(num))
+
+#User options and input control for very large or empty files
 if num == 0:
 	print("Your query did not yield any results! Are you sure you typed in the gene name and the taxon ID correctly...? Please, start again")
 	exit()
@@ -81,9 +89,6 @@ for line in UserFile:
 		NameSpecies = _splitline[1]
 		#accessorID = AccNumbArrow[1:-1]
 		print(NameSpecies)
-
-
-
 UserFile.close()
 
 ##MULTIPLE SEQUENCE ALIGNMENT WITH CLUSTALO
@@ -92,10 +97,10 @@ Clustalo = 'clustalo -i {}.fasta -o {}MA.msf --outfmt msf --output-order tree-or
 ClustaloOut = subprocess.check_output(Clustalo, shell=True)
 
 #Check the ClustalO output
-UserClustal = open('{}MA.msf'.format(TaxonID))
-UserClustal_Contents = UserClustal.read()
-print(UserClustal_Contents)
-print("The number of aligned sequences with clustal is {}".format(num))
+#UserClustal = open('{}MA.msf'.format(TaxonID))
+#UserClustal_Contents = UserClustal.read()
+#print(UserClustal_Contents)
+#print("The number of aligned sequences with clustal is {}".format(num))
 
 #IF THERE ARE MORE THAN 250 SEQUENCES, THE CODE REDUCES THE NUMBER TO 250 TO KEEP GOING WITH THE ANALYSIS
 if num >= 250:
@@ -113,7 +118,6 @@ if num >= 250:
 	BlastPOut = subprocess.check_output(BlastP, shell=True)
 	print("BLAST analysis performed")
 
-
 	#Sort BLAST results by similarity using Pandas
 	df = pd.read_csv('blastout.txt',sep='\t', skiprows=(0,1,2,3,4))
 	df.columns = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"]
@@ -128,9 +132,7 @@ if num >= 250:
 	ListID250 = listID[0:250]
 	print("Acc numbers of the most similar sequences are shown")
 	print(len(ListID250))
-
 	#Create dictionary with the top 250 IDs
-	FinalFASTA = open("SimilarSeqs.txt", mode="w")
 	AI_DICT = {}
 	for line in ListID250:
     		AI_DICT[line[:-1]] = 1
@@ -138,7 +140,8 @@ if num >= 250:
 	UserFile = open('{}.fasta'.format(TaxonID), 'r')
 	
 	#Look for the sequences with an ID that is present in the top 250 IDs with higher similarity
-	#Write them in a new file
+	#Write them in a new file called SimilarSeqs.txt
+	FinalFASTA = open("SimilarSeqs.txt", mode="w")
 	skip = 0
 	for line in UserFile:
         	if line[0] == '>':
@@ -153,7 +156,7 @@ if num >= 250:
         	else:
                 	if not skip:
                         	FinalFASTA.write(line)
-	
+	##File obtained with 250 most similar sequences. Close it after finishing writing 
 	FinalFASTA.close()
 	
         ##Perform alignment again, this time with just the 250 most similar sequences
@@ -165,7 +168,6 @@ if num >= 250:
 	Plot = 'plotcon SimilarSeqsMA.msf -graph svg -goutfile plotcon'
 	subprocess.check_output(Plot, shell=True)
 	
-
 else:
 ##Generate the plotcon with original dataset if the number of sequences was <250
 	Plot = 'plotcon {}MA.msf -graph svg -goutfile plotcon'.format(TaxonID)
@@ -178,16 +180,11 @@ UserFile.close()
 
 ##PART 3: PROSITE MOTIF SEARCH
 
-#Ask the user how many sequences to study for motifs
-REQUESTED_LINES = input("How many sequences would you like to send for PROSITE motif analysis?:")
+#Open the FASTA files with the sequences that will be searched for motifs
 if num > 250:
-	SelectedSeqs = 'awk "/^>/ {n++} n> %s {exit} {print}" SimilarSeqs.txt > ToPROSITE.fasta' % REQUESTED_LINES
-	SelSeqs = subprocess.check_output(SelectedSeqs, shell=True)
+	UserFile = open('SimilarSeqs.txt', 'r')
 else:
-	SelectedSeqs = 'awk "/^>/ {n++} n> %s {exit} {print}" %s.fasta > ToPROSITE.fasta' % (REQUESTED_LINES, TaxonID) 
-	SelSeqs = subprocess.check_output(SelectedSeqs, shell=True)
-
-UserFile = open('ToPROSITE.fasta', 'r')
+	UserFile = open('{}.fasta'.format(TaxonID), 'r')
 
 #Generate a single FASTA file for each sequence that will be analysed
 #Necessary for individual output to patmatmotifs
@@ -204,7 +201,7 @@ for line in UserFile:
         outfile.write(line)
 outfile.close()
 
-#Run a search against the PROSITE motif database for the sequence number indicated by the user
+#Run a search against the PROSITE motif database for the sequences
 #search for all files that end in ..fasta as indicated with the previous loop
 for filename in os.listdir('.'):
 	if filename.endswith("..fasta"):
@@ -214,14 +211,36 @@ for filename in os.listdir('.'):
 	else:
 		continue
 
+
 ##Check if there is any hit (any motif found):
 ##The ID of any Interesting outputs (those showing hits) is indicated
+##All reports showing a hit are written in a new file PROSITEreport.txt
+PAT = open('PROSITEreport.txt', 'w')
 for filename in os.listdir('.'):
 	if filename.endswith(".patmatmotifs"):
-		if re.search(r'HitCount: 0', filename):
+		report = open(filename, 'r').read()
+		if re.search(r'HitCount: 0', report):
 			continue
 		else:
 			print("The sequence" + filename + "shows at least one motif from the PROSITE database")
+			PAT.write(report)
 
+#Ask the user if they wish to display the reports on screen
+print("A new report file has been created with information about the motifs found on the proteins. The file is called PROSITEreport.txt")
+Display = input("Do you want to see the reports of the sequences that showed motifs from the PROSITE database? (yes/no):")
 
+if Display in yes:
+	print(PAT)
+PAT.close()
+
+mfind = open('PROSITEreport.txt', 'r')
+for line in mfind:
+	if re.search(r'Sequence', line):
+		print(line)
+	if re.search(r'Motif', line):
+		print(line)
+
+##Get the output files of interest for the user out of the src directory so that they can be easily found
+shutil.move('PROSITEreport.txt', '../PROSITEreport.txt')
+shutil.move('plotcon.svg', '../plotcon.svg')
 
