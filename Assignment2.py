@@ -7,6 +7,8 @@ import os, sys
 import subprocess
 import numpy as np
 import pandas as pd
+import shutil
+import re
 
 #Make sure we are running in the user workspace of the server
 chdir = ("cd /localdisk/home/$USER")
@@ -86,7 +88,7 @@ UserFile.close()
 
 ##MULTIPLE SEQUENCE ALIGNMENT WITH CLUSTALO
 print("ClustalO multiple alignment is being performed. Please be a little bit patient...")
-Clustalo = 'clustalo -i {}.fasta -o {}MA.msf --outfmt msf -v --output-order tree-order'.format(TaxonID, TaxonID)
+Clustalo = 'clustalo -i {}.fasta -o {}MA.msf --outfmt msf --output-order tree-order'.format(TaxonID, TaxonID)
 ClustaloOut = subprocess.check_output(Clustalo, shell=True)
 
 #Check the ClustalO output
@@ -95,7 +97,7 @@ UserClustal_Contents = UserClustal.read()
 print(UserClustal_Contents)
 print("The number of aligned sequences with clustal is {}".format(num))
 
-#Get consensus sequence
+#IF THERE ARE MORE THAN 250 SEQUENCES, THE CODE REDUCES THE NUMBER TO 250 TO KEEP GOING WITH THE ANALYSIS
 if num >= 250:
 	##Get a consensus sequence to BLAST against
 	print("There were more than 250 sequences. BLAST analysis will be performed to keep only the 250 most similar ones")
@@ -116,6 +118,7 @@ if num >= 250:
 	df = pd.read_csv('blastout.txt',sep='\t', skiprows=(0,1,2,3,4))
 	df.columns = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"]
 	pd.concat([pd.DataFrame(df.columns), df], ignore_index=True)
+	##Column 3 contains the similarity values
 	dfsorted = df.sort_values('3', ascending = False)
 	print("Sorted by similarity")
 
@@ -126,6 +129,7 @@ if num >= 250:
 	print("Acc numbers of the most similar sequences are shown")
 	print(len(ListID250))
 
+	#Create dictionary with the top 250 IDs
 	FinalFASTA = open("SimilarSeqs.txt", mode="w")
 	AI_DICT = {}
 	for line in ListID250:
@@ -133,6 +137,8 @@ if num >= 250:
 
 	UserFile = open('{}.fasta'.format(TaxonID), 'r')
 	
+	#Look for the sequences with an ID that is present in the top 250 IDs with higher similarity
+	#Write them in a new file
 	skip = 0
 	for line in UserFile:
         	if line[0] == '>':
@@ -172,6 +178,7 @@ UserFile.close()
 
 ##PART 3: PROSITE MOTIF SEARCH
 
+#Ask the user how many sequences to study for motifs
 REQUESTED_LINES = input("How many sequences would you like to send for PROSITE motif analysis?:")
 if num > 250:
 	SelectedSeqs = 'awk "/^>/ {n++} n> %s {exit} {print}" SimilarSeqs.txt > ToPROSITE.fasta' % REQUESTED_LINES
@@ -181,10 +188,10 @@ else:
 	SelSeqs = subprocess.check_output(SelectedSeqs, shell=True)
 
 UserFile = open('ToPROSITE.fasta', 'r')
-  
-outfile = []
 
 #Generate a single FASTA file for each sequence that will be analysed
+#Necessary for individual output to patmatmotifs
+outfile = []
 for line in UserFile:
     if line.startswith(">"):
         if (outfile != []): outfile.close()
@@ -197,14 +204,24 @@ for line in UserFile:
         outfile.write(line)
 outfile.close()
 
+#Run a search against the PROSITE motif database for the sequence number indicated by the user
+#search for all files that end in ..fasta as indicated with the previous loop
 for filename in os.listdir('.'):
 	if filename.endswith("..fasta"):
-		PROSITE = 'patmatmotifs -sequence {} -sprotein1 -sformat1 fasta | cat'.format(filename)
+		PROSITE = 'patmatmotifs -sequence {} -sprotein1 -sformat1 fasta -rname2 {} | cat'.format(filename, filename)
 		PROSITE_OUT = subprocess.check_output(PROSITE, shell=True)
 		continue
 	else:
 		continue
 
+##Check if there is any hit (any motif found):
+##The ID of any Interesting outputs (those showing hits) is indicated
+for filename in os.listdir('.'):
+	if filename.endswith(".patmatmotifs"):
+		if re.search(r'HitCount: 0', filename):
+			continue
+		else:
+			print("The sequence" + filename + "shows at least one motif from the PROSITE database")
 
 
 
