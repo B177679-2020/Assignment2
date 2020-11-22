@@ -44,7 +44,6 @@ i=0
 while (i==0):
     print("hola")
     PartialsPred = input("Do you want to include partial and predicted sequences of the protein in your search, if there are any? yes or no")
-
     if PartialsPred in yes:
             i=1
             GeneralES = 'esearch -db protein -query "{}[Organism] AND {}*[Protein]" | efetch -db protein -format fasta > {}.fasta'.format(TaxonID, Protein, TaxonID)
@@ -66,21 +65,24 @@ num = len([1 for line in UserFile_Contents if line.startswith(">")])
 print("The number of protein sequences for your query is {}".format(num))
 
 #User options and input control for very large or empty files
-if num == 0:
-	print("Your query did not yield any results! Are you sure you typed in the gene name and the taxon ID correctly...? Please, start again")
-	exit()
-elif num >= 1000:
-	print("Your query yielded more than 1000 results! That's a lot to handle... Maybe try another time?")
-	exit()
-elif num != 0 and num < 1000:
-	UserNumbSeqs = input("Do you want to keep going now that you know the number of sequences that will be analysed?")
-	if UserNumbSeqs in yes:
-		print("Great! Next step is performing a multiple alignment")
-	elif UserNumbSeqs in no:
+c = 0
+while (c == 0):
+	if num == 0:
+		print("Your query did not yield any results! Are you sure you typed in the gene name and the taxon ID correctly...? Please, start again")
 		exit()
-	else:
-		sys.stdout.write("please respond yes or no!")
+	elif num >= 1000:
+		print("Your query yielded more than 1000 results! That's a lot to handle... Maybe try another time?")
 		exit()
+	elif num != 0 and num < 1000:
+		UserNumbSeqs = input("Do you want to keep going now that you know the number of sequences that will be analysed?")
+		if UserNumbSeqs in yes:
+			print("Great! Next step is performing a multiple alignment")
+			c = 1
+		elif UserNumbSeqs in no:
+			exit()
+		else:
+			sys.stdout.write("please respond yes or no!")
+			
 
 ##Check for the species in the file
 for line in UserFile:
@@ -92,7 +94,7 @@ for line in UserFile:
 UserFile.close()
 
 ##MULTIPLE SEQUENCE ALIGNMENT WITH CLUSTALO
-print("ClustalO multiple alignment is being performed. Please be a little bit patient...")
+print("ClustalO multiple alignment is being performed. Please be patient...")
 Clustalo = 'clustalo -i {}.fasta -o {}MA.msf --outfmt msf --output-order tree-order'.format(TaxonID, TaxonID)
 ClustaloOut = subprocess.check_output(Clustalo, shell=True)
 
@@ -205,7 +207,7 @@ outfile.close()
 #search for all files that end in ..fasta as indicated with the previous loop
 for filename in os.listdir('.'):
 	if filename.endswith("..fasta"):
-		PROSITE = 'patmatmotifs -sequence {} -sprotein1 -sformat1 fasta -rname2 {} | cat'.format(filename, filename)
+		PROSITE = 'patmatmotifs -sequence {} -sprotein1 -sformat1 fasta -rname2 {} -auto | cat'.format(filename, filename)
 		PROSITE_OUT = subprocess.check_output(PROSITE, shell=True)
 		continue
 	else:
@@ -229,18 +231,38 @@ for filename in os.listdir('.'):
 print("A new report file has been created with information about the motifs found on the proteins. The file is called PROSITEreport.txt")
 Display = input("Do you want to see the reports of the sequences that showed motifs from the PROSITE database? (yes/no):")
 
-if Display in yes:
-	print(PAT)
+k = 0
+while (k == 0):
+	if Display in yes:
+		print(PAT)
+		k = 1
+	if Display in no:
+		print("That's OK! The file is saved in your directory, you can go back to it later.")
+		k = 1
+	else:
+		print("Please respond yes or no")
 PAT.close()
 
+#Create a tidy summary output with the ID of sequences with motifs, and the name of the motifs
 mfind = open('PROSITEreport.txt', 'r')
+summary = open('PROSITESummary.txt', 'w')
+
+#Loop that finds the ID of sequences and the motifs:
 for line in mfind:
 	if re.search(r'Sequence', line):
 		print(line)
+		summary.write(line)
 	if re.search(r'Motif', line):
 		print(line)
+		summary.write(line)
+
+mfind.close()
+summary.close()
 
 ##Get the output files of interest for the user out of the src directory so that they can be easily found
+print("The analysis of your query is done. The directory that you created at the beginning contains the plotcon image and the full and summarized PROSITE reports. All the intermediate files are in the src directory, in case you need then for further analysis. Thanks!")
+
+shutil.move('PROSITESummary.txt', '../PROSITESummary.txt')
 shutil.move('PROSITEreport.txt', '../PROSITEreport.txt')
 shutil.move('plotcon.svg', '../plotcon.svg')
 
