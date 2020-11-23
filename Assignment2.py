@@ -280,12 +280,12 @@ summary.close()
         ##Plot hydrophobicity of the aligned sequences
 if num > 250:
 	HPlot = 'pepwindowall SimilarSeqsMA.msf -graph svg -goutfile HydrophobicityPlot'
-        subprocess.check_output(HPlot, shell=True)
+	subprocess.check_output(HPlot, shell=True)
 
 else:
 ##Generate the hydrophobicity plot with original dataset if the number of sequences was <250
-        HPlot = 'pepwindowall {}MA.msf -graph svg -goutfile HydrophobicityPlot'.format(TaxonID)
-        subprocess.check_output(HPlot, shell=True)
+	HPlot = 'pepwindowall {}MA.msf -graph svg -goutfile HydrophobicityPlot'.format(TaxonID)
+	subprocess.check_output(HPlot, shell=True)
 
 
 
@@ -296,4 +296,4 @@ print("The analysis of your query is done. The directory that you created at the
 shutil.move('PROSITESummary.txt', '../PROSITESummary.txt')
 shutil.move('PROSITEreport.txt', '../PROSITEreport.txt')
 shutil.move('plotcon.svg', '../plotcon.svg')
-shutil.move('HidrophobicityPlot.svg', '../HidrophobicityPlot.svg')
+shutil.move('HydrophobicityPlot.svg', '../HydrophobicityPlot.svg')
