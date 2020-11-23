@@ -32,6 +32,13 @@ TaxonID = input("Please type in your Taxon ID (txidxxxx):")
 if not TaxonID.startswith("txid"):
 	print("Please, enter the Taxon ID in the correct format (txid followed by 4 or 5 numbers)")
 	TaxonID = input("Please type in your Taxon ID again (remember, txidxxxx):")
+#Get the name of the species to which the taxon refers to
+TaxonInput = 'efetch -db taxonomy -id {} -format xml |   xtract -pattern Taxon     -element TaxId ScientificName GenbankCommonName Division | cat'.format(TaxonID)
+txinputout = subprocess.check_output(TaxonInput, shell = True)
+print("This is the name of your chosen taxon")
+print(txinputout)
+
+
 Protein = input("Please type in the protein of interest (ex.: phosphatase, kinase...):")
 
 ##Some options for the user
@@ -40,16 +47,31 @@ no = {'no','n', 'No', 'NO'}
 
 ##Search in the NCBI database
 
+#Error traps to only allow for answers in yes or no, if not ask again
+#Options for including predicted/partial sequences
+#Options for include protein name variations in the query
 i=0
 while (i==0):
-    print("hola")
-    PartialsPred = input("Do you want to include partial and predicted sequences of the protein in your search, if there are any? yes or no")
+    PartialsPred = input("Do you want to include partial and predicted sequences of the protein in your search, if there are any? yes or no:")
+    Variations = input("Do you want to include variations of your protein name? For example, if your input was Glucose-6-phosphatase, would you also like to see the isoforms X1, X2...? yes or no:")
     if PartialsPred in yes:
-            i=1
-            GeneralES = 'esearch -db protein -query "{}[Organism] AND {}*[Protein]" | efetch -db protein -format fasta > {}.fasta'.format(TaxonID, Protein, TaxonID)
+            if Variations in yes:
+               i=1
+               GeneralES = 'esearch -db protein -query "{}[Organism] AND {}*[Protein]" | efetch -db protein -format fasta > {}.fasta'.format(TaxonID, Protein, TaxonID)
+            elif Variations in no:
+               i=1
+               GeneralES = 'esearch -db protein -query "{}[Organism] AND {}[Protein]" | efetch -db protein -format fasta > {}.fasta'.format(TaxonID, Protein, TaxonID)
+            else:
+               print("Please answer yes or no!") 
     elif PartialsPred in no:
-            i=1
-            GeneralES = 'esearch -db protein -query "{}[Organism] AND {}*[Protein] NOT partial NOT predicted" | efetch -db protein -format fasta > {}.fasta'.format(TaxonID, Protein, TaxonID)
+            if Variations in yes:
+               i=1
+               GeneralES = 'esearch -db protein -query "{}[Organism] AND {}*[Protein] NOT partial NOT predicted" | efetch -db protein -format fasta > {}.fasta'.format(TaxonID, Protein, TaxonID)
+            elif Variations in no:
+               i=1
+               GeneralES = 'esearch -db protein -query "{}[Organism] AND {}[Protein] NOT partial NOT predicted" | efetch -db protein -format fasta > {}.fasta'.format(TaxonID, Protein, TaxonID)
+            else:
+               print("Please answer yes or no!")
     else:
             print("Sorry, I did not understand that!")
 
@@ -65,6 +87,7 @@ num = len([1 for line in UserFile_Contents if line.startswith(">")])
 print("The number of protein sequences for your query is {}".format(num))
 
 #User options and input control for very large or empty files
+#If sequences between 1 and 1000, give user the option to choose if run or not.
 c = 0
 while (c == 0):
 	if num == 0:
@@ -84,13 +107,6 @@ while (c == 0):
 			sys.stdout.write("please respond yes or no!")
 			
 
-##Check for the species in the file
-for line in UserFile:
-	if line[0] == '>':
-		splitline = line.split('[')
-		NameSpecies = _splitline[1]
-		#accessorID = AccNumbArrow[1:-1]
-		print(NameSpecies)
 UserFile.close()
 
 ##MULTIPLE SEQUENCE ALIGNMENT WITH CLUSTALO
@@ -259,10 +275,25 @@ for line in mfind:
 mfind.close()
 summary.close()
 
+##SECTION 4: EXTRA ANALYSIS
+#HYDROPHOBICITY PLOT
+        ##Plot hydrophobicity of the aligned sequences
+if num > 250:
+	HPlot = 'pepwindowall SimilarSeqsMA.msf -graph svg -goutfile HydrophobicityPlot'
+        subprocess.check_output(HPlot, shell=True)
+
+else:
+##Generate the hydrophobicity plot with original dataset if the number of sequences was <250
+        HPlot = 'pepwindowall {}MA.msf -graph svg -goutfile HydrophobicityPlot'.format(TaxonID)
+        subprocess.check_output(HPlot, shell=True)
+
+
+
+
 ##Get the output files of interest for the user out of the src directory so that they can be easily found
 print("The analysis of your query is done. The directory that you created at the beginning contains the plotcon image and the full and summarized PROSITE reports. All the intermediate files are in the src directory, in case you need then for further analysis. Thanks!")
 
 shutil.move('PROSITESummary.txt', '../PROSITESummary.txt')
 shutil.move('PROSITEreport.txt', '../PROSITEreport.txt')
 shutil.move('plotcon.svg', '../plotcon.svg')
-
+shutil.move('HidrophobicityPlot.svg', '../HidrophobicityPlot.svg')
